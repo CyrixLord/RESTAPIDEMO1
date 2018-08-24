@@ -18,9 +18,17 @@ namespace LandonApi
 {
     public class Startup
     {
+        //
+        // we need to read the port # generated for https in dev code (product code is 443)
+        // from launchsettings.json
+
+        private int? _httpsPort;
+
         public Startup(IConfiguration configuration)
         {
-            Configuration = configuration;
+            Configuration = configuration;   // different than .net 1.0, needed to make env. changes so used
+            // the area below for it. _httpsPort was readonly but can't do that now so changed scope
+           
         }
 
         public IConfiguration Configuration { get; }
@@ -32,6 +40,16 @@ namespace LandonApi
             {
 
                 opt.Filters.Add(typeof(JsonExceptionFilter)); //add our exception filter we wrote to process exceptoins based on dev/prod environment
+
+                //
+                // now that we made https optional in the project settings, we want to
+                // require https for all controllers
+                //
+
+                opt.SslPort = _httpsPort; // assign port we grabbed from launchsettings.json. we did that in the 
+                                          // configure method in the env.IsDevelopment area since this port # is assigned
+                                          // only in dev environment and would not work in production
+                opt.Filters.Add(typeof(RequireHttpsAttribute));
 
             var jsonFormatter = opt.OutputFormatters.OfType<JsonOutputFormatter>().Single(); // find the first instance in list where jsonoutputformatter is
             opt.OutputFormatters.Remove(jsonFormatter); // remove json formatter from list of output formatters.., we want our ion formatter in
@@ -66,6 +84,12 @@ namespace LandonApi
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
+                // get the https port only in development  by reading launchsettings.json file and getting port
+                var launchJsonConfig = new ConfigurationBuilder()
+                    .SetBasePath(env.ContentRootPath)
+                    .AddJsonFile("Properties\\launchSettings.json")
+                    .Build();
+                _httpsPort = launchJsonConfig.GetValue<int>("iisSettings:iisExpress:sslPort");
             }
 
             app.UseMvc();
